@@ -1,85 +1,146 @@
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('menuToggle').onclick = toggleNav;
-  loadAndDisplayGoals();
-
-  document.getElementById('add-goal-form').addEventListener('submit', (event) => {
-      event.preventDefault();
-
-      const goalName = document.getElementById('goal-name').value;
-      const goalDescription = document.getElementById('goal-description').value;
-      const goalDueDate = document.getElementById('goal-due-date').value;
-      const goalProgress = document.getElementById('goal-progress').value;
-      const goalNotes = document.getElementById('goal-notes').value;
-
-      addGoalToDatabase(goalName, goalDescription, goalDueDate, goalProgress, goalNotes);
-      event.target.reset();
-      document.getElementById('progress-display').textContent = '0%';
-  });
-
-  document.getElementById('goal-progress').addEventListener('input', (event) => {
-      document.getElementById('progress-display').textContent = event.target.value + '%';
-  });
-});
-
 const toggleNav = () => {
-  document.querySelector('.menu').classList.toggle('active');
+  document.querySelector(".menu").classList.toggle("active");
 };
 
 const loadAndDisplayGoals = () => {
-  fetch('/api/goals')
-    .then(response => response.json())
-    .then(goals => {
-        goals.forEach(goal => addNewGoal(goal._id, goal.name, goal.description, goal.dueDate, goal.progress, goal.notes));
-    })
-    .catch(error => {
-        console.error('Error loading goals:', error);
-    });
+  const url = 'http://localhost:3000/api/goals'; 
+
+  fetch(url)
+      .then(response => response.json())
+      .then(goals => {
+          goals.forEach(goal => addNewGoal(goal));
+      })
+      .catch(error => {
+          console.error('Error loading goals:', error);
+      });
 };
 
-const addNewGoal = (id, name, description, dueDate, progress, notes) => {
-  const goalElement = document.createElement('div');
-  goalElement.classList.add('goal');
+const addNewGoal = (goal) => {
+  const goalElement = document.createElement("div");
+  goalElement.classList.add("goal");
   goalElement.innerHTML = `
-      <h3 class="goal-name">${name}</h3>
-      <p class="goal-description">${description}</p>
-      <p class="goal-due-date">Due Date: ${dueDate}</p>
-      <p class="goal-progress">Progress: ${progress}%</p>
-      <p class="goal-notes">${notes}</p>
+      <h3 class="goal-name">${goal.name}</h3>
+      <p class="goal-description">${goal.description}</p>
+      <p class="goal-due-date">Due Date: ${goal.due_date}</p>
+      <p class="goal-progress">Progress: ${goal.progress}%</p>
+      <p class="goal-notes">${goal.notes}</p>
       <button class="edit-goal">Edit</button>
       <button class="delete-goal">Delete</button>
   `;
 
-  goalElement.querySelector('.edit-goal').addEventListener('click', () => {
-      // Populate edit form and show it
-      document.getElementById('edit-goal-id').value = id;
-      document.getElementById('edit-goal-name').value = name;
-      document.getElementById('edit-goal-description').value = description;
-      document.getElementById('edit-goal-due-date').value = dueDate;
-      document.getElementById('edit-goal-progress').value = progress;
-      document.getElementById('edit-goal-notes').value = notes;
-      // Show edit form logic here
+  goalElement.querySelector(".edit-goal").addEventListener("click", () => {
+      editGoal(goal);
   });
 
-  goalElement.querySelector('.delete-goal').addEventListener('click', () => {
-      deleteGoalFromDatabase(id, goalElement);
+  goalElement.querySelector(".delete-goal").addEventListener("click", () => {
+      deleteGoal(goal._id, goalElement);
   });
 
-  document.getElementById('goals-list').appendChild(goalElement);
+  document.getElementById("goals-list").appendChild(goalElement);
 };
 
-const addGoalToDatabase = (name, description, dueDate, progress, notes) => {
-  const newGoal = { name, description, dueDate, progress, notes };
-  fetch('/api/goals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newGoal)
+const editGoal = (goalId) => {
+  
+  fetch(`http://localhost:3000/api/goals/${goalId}`)
+      .then(response => response.json())
+      .then(goal => {
+          document.getElementById("goal-name").value = goal.name;
+          document.getElementById("goal-description").value = goal.description;
+          document.getElementById("goal-due-date").value = new Date(goal.due_date).toISOString().split('T')[0];
+          document.getElementById("goal-progress").value = goal.progress;
+          document.getElementById("goal-notes").value = goal.notes;
+
+          
+          const goalForm = document.getElementById("goal-form");
+          goalForm.onsubmit = (e) => {
+              e.preventDefault();
+              updateGoal(goalId, {
+                  name: document.getElementById("goal-name").value,
+                  description: document.getElementById("goal-description").value,
+                  due_date: document.getElementById("goal-due-date").value,
+                  progress: document.getElementById("goal-progress").value,
+                  notes: document.getElementById("goal-notes").value
+              });
+          };
+      })
+      .catch(error => console.error('Error fetching goal:', error));
+};
+
+const updateGoal = (goalId, updatedGoal) => {
+  fetch(`http://localhost:3000/api/goals/${goalId}`, {
+      method: 'PUT',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedGoal),
   })
-  .then(() => loadAndDisplayGoals())
-  .catch(error => console.error('Error:', error));
+  .then(response => {
+      if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+  })
+  .then(data => {
+      console.log('Goal updated:', data);
+      
+  })
+  .catch(error => console.error('Error updating goal:', error));
 };
 
-const deleteGoalFromDatabase = (id, element) => {
-  fetch(`/api/goals/${id}`, { method: 'DELETE' })
-      .then(() => element.remove())
-      .catch(error => console.error('Error:', error));
+
+const deleteGoal = (goalId, goalElement) => {
+  const url = `http://localhost:3000/api/goals/${goalId}`;  
+
+  fetch(url, { method: 'DELETE' })
+      .then(response => {
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          goalElement.remove();  
+      })
+      .catch(error => console.error('Error deleting goal:', error));
 };
+
+window.onload = () => {
+  document.getElementById("menuToggle").onclick = toggleNav;
+  loadAndDisplayGoals();
+};
+
+document.getElementById("add-goal-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const goal = {
+      name: document.getElementById("goal-name").value,
+      description: document.getElementById("goal-description").value,
+      due_date: document.getElementById("goal-due-date").value,
+      progress: document.getElementById("goal-progress").value,
+      notes: document.getElementById("goal-notes").value,
+  };
+
+  addGoal(goal);  
+  event.target.reset();
+  document.getElementById("progress-display").textContent = "0%";
+});
+
+const addGoal = (goal) => {
+  const url = 'http://localhost:3000/api/goals';  
+
+  fetch(url, {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(goal),
+  })
+      .then(response => {
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          loadAndDisplayGoals(); 
+      })
+      .catch(error => console.error('Error adding goal:', error));
+};
+
+document.getElementById("goal-progress").addEventListener("input", (event) => {
+  document.getElementById("progress-display").textContent = event.target.value + "%";
+});

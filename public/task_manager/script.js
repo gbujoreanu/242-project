@@ -1,86 +1,140 @@
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('menuToggle').onclick = toggleNav;
-  document.getElementById('add-task-form').addEventListener('submit', addTask);
-  document.getElementById('edit-task-form').addEventListener('submit', editTask);
-  loadAndDisplayTasks();
-});
-
 const toggleNav = () => {
   document.querySelector(".menu").classList.toggle("active");
 };
 
+window.onload = () => {
+  document.getElementById("menuToggle").onclick = toggleNav;
+  loadAndDisplayTasks();
+};
+
 function loadAndDisplayTasks() {
-  fetch('/api/tasks')
+  const url = 'http://localhost:3000/api/tasks';  
+
+  fetch(url)
       .then(response => response.json())
       .then(tasks => {
-          const tasksList = document.getElementById('tasks-list');
+          const tasksList = document.getElementById('data-container');
           tasksList.innerHTML = '';
 
           tasks.forEach(task => {
               const taskElement = document.createElement('div');
               taskElement.classList.add('task');
               taskElement.innerHTML = `
-                  <h3>${task.name}</h3>
-                  <p>${task.description}</p>
-                  <button onclick="displayEditForm('${task._id}')">Edit</button>
-                  <button onclick="deleteTask('${task._id}')">Delete</button>
+                  <h3 class="task-name">${task.name}</h3>
+                  <p class="task-description">${task.description}</p>
+                  <p class="task-due-date">Due Date: ${task.due_date}</p>
+                  <p class="task-priority">Priority: ${task.priority}</p>
+                  <p class="task-status">Status: ${task.status}</p>
+                  <button class="edit-task">Edit</button>
+                  <button class="delete-task">Delete</button>
               `;
+
+              taskElement.querySelector('.edit-task').addEventListener('click', () => {
+                  editTask(task);
+              });
+
+              taskElement.querySelector('.delete-task').addEventListener('click', () => {
+                  deleteTask(task._id, taskElement);
+              });
+
               tasksList.appendChild(taskElement);
           });
       })
-      .catch(error => console.error('Error:', error));
+      .catch(error => {
+          console.error('Error loading tasks:', error);
+      });
 }
 
-function addTask(event) {
-  event.preventDefault();
-  const formData = new FormData(event.target);
-  const task = Object.fromEntries(formData.entries());
+function editTask(task) {
 
-  fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(task)
-  })
-  .then(() => {
-      loadAndDisplayTasks();
-      event.target.reset();
-  })
-  .catch(error => console.error('Error:', error));
+  const taskModal = document.getElementById("task-modal");
+  
+  document.getElementById("task-name").value = task.name;
+  document.getElementById("task-description").value = task.description;
+  document.getElementById("task-due-date").value = new Date(task.due_date).toISOString().split('T')[0];
+  document.getElementById("task-status").value = task.status;
+
+  taskModal.style.display = "block";
+
+  const taskForm = document.getElementById("task-form");
+  taskForm.onsubmit = (e) => {
+      e.preventDefault();
+      const updatedTask = {
+          name: document.getElementById("task-name").value,
+          description: document.getElementById("task-description").value,
+          due_date: document.getElementById("task-due-date").value,
+          status: document.getElementById("task-status").value
+      };
+
+      updateTask(task.id, updatedTask);
+
+      taskModal.style.display = "none";
+  };
 }
 
-function displayEditForm(taskId) {
-  fetch(`/api/tasks/${taskId}`)
-      .then(response => response.json())
-      .then(task => {
-          const editForm = document.getElementById('edit-task-form');
-          editForm.name.value = task.name;
-          editForm.description.value = task.description;
-          editForm.taskId.value = task._id;
-          editForm.style.display = 'block';
-      })
-      .catch(error => console.error('Error:', error));
-}
-
-function editTask(event) {
-  event.preventDefault();
-  const taskId = event.target.taskId.value;
-  const formData = new FormData(event.target);
-  const updatedTask = Object.fromEntries(formData.entries());
-
-  fetch(`/api/tasks/${taskId}`, {
+function updateTask(taskId, updatedTask) {
+  fetch(`http://localhost:3000/api/tasks/${taskId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedTask)
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedTask),
   })
-  .then(() => {
-      loadAndDisplayTasks();
-      event.target.style.display = 'none';
+  .then(response => {
+      if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
   })
-  .catch(error => console.error('Error:', error));
+  .then(data => {
+      console.log('Task updated:', data);
+  })
+  .catch(error => console.error('Error updating task:', error));
 }
 
-function deleteTask(taskId) {
-  fetch(`/api/tasks/${taskId}`, { method: 'DELETE' })
-      .then(() => loadAndDisplayTasks())
-      .catch(error => console.error('Error:', error));
+function deleteTask(taskId, taskElement) {
+  const url = `http://localhost:3000/api/tasks/${taskId}`;  
+
+  fetch(url, { method: 'DELETE' })
+      .then(response => {
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          taskElement.remove();  
+      })
+      .catch(error => console.error('Error deleting task:', error));
+}
+
+document.getElementById('task-form').addEventListener('submit', function(event) {
+  event.preventDefault();
+
+  const task = {
+      name: document.getElementById('task-name').value,
+      description: document.getElementById('task-description').value,
+      due_date: document.getElementById('task-due-date').value,
+      priority: document.getElementById('task-priority').value,
+      status: document.getElementById('task-status').value,
+  };
+
+  addTask(task);  
+  document.getElementById('task-form').reset();
+});
+
+function addTask(task) {
+  const url = 'http://localhost:3000/api/tasks';  
+
+  fetch(url, {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(task),
+  })
+      .then(response => {
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          loadAndDisplayTasks();  
+      })
+      .catch(error => console.error('Error adding task:', error));
 }
